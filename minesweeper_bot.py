@@ -217,7 +217,7 @@ class MinesweeperBot:
                 return {cell: 1.0 for cell in boundary}
             prob = (g.total_mines - g.flags) / len(unknowns)
             return {cell: prob for cell in boundary}
-        probs = {boundary[i]: counts[i]/total_valid for i in range[n]}
+        probs = {boundary[i]: counts[i]/total_valid for i in range(n)}
         return probs
 
     def _fallback_pick(self):
@@ -236,62 +236,104 @@ class MinesweeperBot:
 # -------------------------
 # Pygame UI
 # -------------------------
-CELL = 24
-MARGIN = 5
-TOP_MARGIN = 60
+CELL = 36
+MARGIN = 6
+TOP_MARGIN = 80
+PANEL_WIDTH = 300
+BOARD_OFFSET_X = 28
 
 COLORS = {
-    'bg': (25,25,25),
-    'cell_hidden': (180,180,180),
-    'cell_revealed': (220,220,220),
-    'cell_flag': (255,200,0),
-    'text': (0,0,0),
-    'mine': (200,0,0),
-    'grid': (150,150,150),
-    'button': (70,70,70),
-    'button_hover': (110,110,110),
-    'button_text': (240,240,240)
+    'bg': (18, 24, 31),
+    'panel': (28, 34, 44),
+    'cell_hidden': (200, 200, 210),
+    'cell_revealed': (240, 245, 250),
+    'cell_flag': (220, 60, 60),
+    'text': (20, 24, 28),
+    'mine': (30, 30, 30),
+    'grid': (160, 170, 180),
+    'button': (60, 90, 120),
+    'button_hover': (90, 130, 170),
+    'button_text': (245, 245, 250),
+    'highlight': (255, 255, 255, 40)
 }
-NUM_COLORS = [(0,0,0),(0,0,255),(0,128,0),(255,0,0),(0,0,128),(128,0,0),(0,128,128),(0,0,0),(128,128,128)]
+
+NUM_COLORS = [
+    (0, 0, 0),      # 0 (unused)
+    (0, 102, 204),  # 1 - blue
+    (0, 153, 68),   # 2 - green
+    (220, 40, 40),  # 3 - red
+    (0, 51, 102),   # 4 - dark blue
+    (153, 51, 51),  # 5 - brown
+    (0, 128, 128),  # 6 - teal
+    (0, 0, 0),      # 7
+    (120, 120, 120) # 8
+]
 
 DIFFICULTIES = {
     "8x8":  (8, 8, 10),   # rows, cols, mines
     "16x16": (16, 16, 40)
 }
 
-def draw_board(screen, font, game):
+def draw_board(screen, font, game, offset_x):
+    # background for board area only (panel covers rest)
     screen.fill(COLORS['bg'])
     rows, cols = game.rows, game.cols
     # draw info
     info = f"Mines: {game.total_mines}  Flags: {game.flags}  Revealed: {game.revealed_count}/{game.rows*game.cols - game.total_mines}"
-    text = font.render(info, True, (240,240,240))
-    screen.blit(text, (10,10))
+    text = font.render(info, True, COLORS['button_text'])
+    screen.blit(text, (10, 18))
+    mx, my = pygame.mouse.get_pos()
     # draw cells
     for i in range(rows):
         for j in range(cols):
-            x = MARGIN + j*(CELL+MARGIN)
+            x = offset_x + MARGIN + j*(CELL+MARGIN)
             y = TOP_MARGIN + MARGIN + i*(CELL+MARGIN)
             rect = pygame.Rect(x,y,CELL,CELL)
             val = game.visible[i][j]
+            # hover highlight
+            hover = rect.collidepoint(mx, my)
             if val == Minesweeper.HIDDEN:
-                pygame.draw.rect(screen, COLORS['cell_hidden'], rect)
+                pygame.draw.rect(screen, COLORS['cell_hidden'], rect, border_radius=6)
+                if hover:
+                    pygame.draw.rect(screen, (255,255,255), rect, 2, border_radius=6)
             elif val == Minesweeper.FLAG:
-                pygame.draw.rect(screen, COLORS['cell_flag'], rect)
-                f = font.render("F", True, COLORS['text'])
-                screen.blit(f, (x+6,y+2))
+                pygame.draw.rect(screen, COLORS['cell_revealed'], rect, border_radius=6)
+                draw_flag(screen, rect)
             elif val == Minesweeper.MINE:
-                pygame.draw.rect(screen, COLORS['mine'], rect)
+                pygame.draw.rect(screen, COLORS['cell_revealed'], rect, border_radius=6)
+                draw_mine(screen, rect)
             else:
-                pygame.draw.rect(screen, COLORS['cell_revealed'], rect)
+                pygame.draw.rect(screen, COLORS['cell_revealed'], rect, border_radius=6)
                 if val > 0:
                     txt = font.render(str(val), True, NUM_COLORS[min(val,len(NUM_COLORS)-1)])
-                    screen.blit(txt, (x+6,y+2))
-            pygame.draw.rect(screen, COLORS['grid'], rect, 1)
+                    screen.blit(txt, (x + (CELL - txt.get_width())//2, y + (CELL - txt.get_height())//2))
+            pygame.draw.rect(screen, COLORS['grid'], rect, 1, border_radius=6)
     # game over message
     if game.game_over:
         s = "You win! (press click to restart)" if game.victory else "Game over (press click to restart)"
         msg = font.render(s, True, (255,255,255))
-        screen.blit(msg, (10, 30))
+        screen.blit(msg, (10, 44))
+
+
+def draw_flag(screen, rect):
+    # small triangle flag with staff
+    cx = rect.x + 8
+    cy = rect.y + 6
+    staff_top = (cx, rect.y + 6)
+    staff_bottom = (cx, rect.y + rect.height - 6)
+    pygame.draw.line(screen, (40,40,40), staff_top, staff_bottom, 3)
+    # flag triangle
+    points = [(cx+2, rect.y + 8), (cx+18, rect.y + 12), (cx+2, rect.y + 18)]
+    pygame.draw.polygon(screen, COLORS['cell_flag'], points)
+    pygame.draw.polygon(screen, (30,30,30), points, 1)
+
+
+def draw_mine(screen, rect):
+    cx = rect.x + rect.width//2
+    cy = rect.y + rect.height//2
+    r = rect.width//3
+    pygame.draw.circle(screen, COLORS['mine'], (cx, cy), r)
+    pygame.draw.circle(screen, (200,200,200), (cx - r//3, cy - r//3), r//5)
 
 def draw_button(screen, rect, text, font, hover=False):
     color = COLORS['button_hover'] if hover else COLORS['button']
@@ -319,15 +361,57 @@ def draw_menu(screen, title_font, font, difficulty, button_rects):
     hint = font.render("Left click buttons | SPACE: bot auto-play in game", True, (200,200,200))
     screen.blit(hint, (width//2 - hint.get_width()//2, height - 40))
 
+def draw_side_panel(screen, font, panel_rect, game, history, auto_play):
+    pygame.draw.rect(screen, (35,35,35), panel_rect)
+
+    x = panel_rect.x + 15
+    y = panel_rect.y + 15
+
+    title = font.render("CONTROL PANEL", True, (255,255,255))
+    screen.blit(title, (x, y))
+    y += 35
+
+    buttons = {
+        "bot": pygame.Rect(x, y, 260, 40),
+        "restart": pygame.Rect(x, y+50, 260, 40),
+        "menu": pygame.Rect(x, y+100, 260, 40),
+        "settings": pygame.Rect(x, y+150, 260, 40),
+    }
+
+    for name, rect in buttons.items():
+        draw_button(
+            screen,
+            rect,
+            f"{'Stop' if auto_play else 'Start'} Bot" if name == "bot" else name.capitalize(),
+            font,
+            rect.collidepoint(pygame.mouse.get_pos())
+        )
+
+    y += 210
+    hist_title = font.render("GAME HISTORY", True, (255,255,255))
+    screen.blit(hist_title, (x, y))
+    y += 30
+
+    for h in history[-8:]:
+        txt = font.render(h, True, (200,200,200))
+        screen.blit(txt, (x, y))
+        y += 22
+
+    return buttons
+
+
 def main():
     pygame.init()
 
-    # We size the window for the largest board (16x16)
+    # We size the window for the largest board (16x16) plus side panel
     max_rows, max_cols = 16, 16
-    width = max_cols*CELL + (max_cols+1)*MARGIN
-    height = max_rows*CELL + (max_rows+1)*MARGIN + TOP_MARGIN
+    board_w = max_cols*CELL + (max_cols+1)*MARGIN
+    board_h = TOP_MARGIN + max_rows*CELL + (max_rows+1)*MARGIN
+    width = BOARD_OFFSET_X*2 + board_w + PANEL_WIDTH
+    height = max(board_h, 480)
 
-    screen = pygame.display.set_mode((width, height))
+    screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+    SCREEN_W, SCREEN_H = screen.get_size()
     pygame.display.set_caption("Minesweeper + Bot")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 18)
@@ -341,12 +425,14 @@ def main():
     auto_play = False
     step_delay = 0.05  # seconds between bot steps
     last_step = time.time()
+    game_history = []
+    game_start_time = time.time()
 
     # Button layout for menu
-    BUTTON_W, BUTTON_H = 200, 45
-    start_rect = pygame.Rect(width//2 - BUTTON_W//2, 160, BUTTON_W, BUTTON_H)
-    diff_rect = pygame.Rect(width//2 - BUTTON_W//2, 225, BUTTON_W, BUTTON_H)
-    quit_rect = pygame.Rect(width//2 - BUTTON_W//2, 290, BUTTON_W, BUTTON_H)
+    BUTTON_W, BUTTON_H = 240, 52
+    start_rect = pygame.Rect(SCREEN_W//2 - BUTTON_W//2, 160, BUTTON_W, BUTTON_H)
+    diff_rect = pygame.Rect(SCREEN_W//2 - BUTTON_W//2, 230, BUTTON_W, BUTTON_H)
+    quit_rect = pygame.Rect(SCREEN_W//2 - BUTTON_W//2, 300, BUTTON_W, BUTTON_H)
     button_rects = (start_rect, diff_rect, quit_rect)
 
     running = True
@@ -374,44 +460,89 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key in (pygame.K_ESCAPE, pygame.K_q):
                         pygame.quit(); sys.exit()
-
             elif state == "game":
                 if event.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = event.pos
+
+                    # ================= STEP 10: RIGHT PANEL BUTTON HANDLING =================
+                    panel_rect = pygame.Rect(SCREEN_W - PANEL_WIDTH, 0, PANEL_WIDTH, SCREEN_H)
+
+                    if panel_rect.collidepoint(mx, my):
+                        # buttons may not exist yet during the first event loop iteration;
+                        # recreate their rects to safely test clicks.
+                        if 'buttons' not in locals() or buttons is None:
+                            x = panel_rect.x + 15
+                            y = panel_rect.y + 15 + 35
+                            buttons = {
+                                "bot": pygame.Rect(x, y, 260, 40),
+                                "restart": pygame.Rect(x, y+50, 260, 40),
+                                "menu": pygame.Rect(x, y+100, 260, 40),
+                                "settings": pygame.Rect(x, y+150, 260, 40),
+                            }
+
+                        if buttons["bot"].collidepoint(mx, my):
+                            auto_play = not auto_play
+
+                        elif buttons["restart"].collidepoint(mx, my):
+                            game.reset()
+                            bot = MinesweeperBot(game, enum_limit=20)
+                            game_start_time = time.time()
+
+                        elif buttons["menu"].collidepoint(mx, my):
+                            state = "menu"
+                            game = None
+                            bot = None
+                            auto_play = False
+
+                        elif buttons["settings"].collidepoint(mx, my):
+                            print("Settings toggle (future feature)")
+
+                        continue
+                    # =======================================================================
+
                     if game.game_over:
                         # restart current difficulty on click
                         game.reset()
                         bot = MinesweeperBot(game, enum_limit=20)
+                        game_start_time = time.time()
                     else:
-                        mx,my = event.pos
                         if my > TOP_MARGIN:
-                            j = (mx - MARGIN) // (CELL + MARGIN)
+                            j = (mx - BOARD_OFFSET_X - MARGIN) // (CELL + MARGIN)
                             i = (my - TOP_MARGIN - MARGIN) // (CELL + MARGIN)
                             if 0 <= i < game.rows and 0 <= j < game.cols:
                                 if event.button == 1:
-                                    game.open(i,j)
+                                    game.open(i, j)
                                 elif event.button == 3:
-                                    game.flag(i,j)
+                                    game.flag(i, j)
+
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         auto_play = not auto_play
+
                     elif event.key == pygame.K_r:
                         game.reset()
                         bot = MinesweeperBot(game, enum_limit=20)
+                        game_start_time = time.time()
+
                     elif event.key == pygame.K_RIGHT:
                         # single bot step
                         action = bot.step()
+
                     elif event.key == pygame.K_UP:
                         bot.enum_limit += 1
                         print("enum_limit:", bot.enum_limit)
+
                     elif event.key == pygame.K_DOWN:
-                        bot.enum_limit = max(5, bot.enum_limit-1)
+                        bot.enum_limit = max(5, bot.enum_limit - 1)
                         print("enum_limit:", bot.enum_limit)
+
                     elif event.key == pygame.K_ESCAPE:
                         # go back to menu
                         state = "menu"
                         game = None
                         bot = None
                         auto_play = False
+
 
         # Update / draw
         if state == "menu":
@@ -422,7 +553,12 @@ def main():
                 action = bot.step()
                 last_step = time.time()
 
-            draw_board(screen, font, game)
+            panel_rect = pygame.Rect(SCREEN_W - PANEL_WIDTH, 0, PANEL_WIDTH, SCREEN_H)
+
+            buttons = draw_side_panel(
+                screen, font, panel_rect, game, game_history, auto_play
+            )
+            draw_board(screen, font, game, BOARD_OFFSET_X)
 
         pygame.display.flip()
         clock.tick(30)
