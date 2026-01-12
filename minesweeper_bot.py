@@ -2,7 +2,11 @@
 # Requirements: pygame
 # pip install pygame
 
-import pygame, sys, random, itertools, time
+import random
+import sys
+import time
+
+import pygame
 from collections import deque, defaultdict
 
 # -------------------------
@@ -13,88 +17,111 @@ class Minesweeper:
     FLAG = -2
     MINE = -3
 
-    def __init__(self, rows=16, cols=16, mines=40):
+    def __init__(self, rows: int = 16, cols: int = 16, mines: int = 40) -> None:
         self.rows = rows
         self.cols = cols
         self.total_mines = mines
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         r, c = self.rows, self.cols
-        self.board = [[0]*c for _ in range(r)]         # underlying board: numbers or -3 for mine
-        self.visible = [[Minesweeper.HIDDEN]*c for _ in range(r)]  # player view: HIDDEN, FLAG, or number (>=0)
+        # underlying board: numbers or MINE
+        self.board = [[0] * c for _ in range(r)]
+        # player view: HIDDEN, FLAG, or number (>=0)
+        self.visible = [[Minesweeper.HIDDEN] * c for _ in range(r)]
         self.mines_placed = False
         self.game_over = False
         self.victory = False
         self.revealed_count = 0
         self.flags = 0
 
-    def place_mines(self, safe_r, safe_c):
+    def place_mines(self, safe_r: int, safe_c: int) -> None:
         # Place mines avoiding safe cell and its neighbors (first click safe)
-        all_cells = [(i,j) for i in range(self.rows) for j in range(self.cols)]
-        neighbors = [(safe_r+dr, safe_c+dc) for dr in (-1,0,1) for dc in (-1,0,1)]
+        all_cells = [(i, j) for i in range(self.rows) for j in range(self.cols)]
+        neighbors = [
+            (safe_r + dr, safe_c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+        ]
         allowed = [p for p in all_cells if p not in neighbors]
         mines = random.sample(allowed, self.total_mines)
-        for (i,j) in mines:
+
+        for (i, j) in mines:
             self.board[i][j] = Minesweeper.MINE
+
         # fill numbers
         for i in range(self.rows):
             for j in range(self.cols):
-                if self.board[i][j] == Minesweeper.MINE: continue
-                cnt = sum(1 for (ni,nj) in self._neigh(i,j) if self.board[ni][nj] == Minesweeper.MINE)
+                if self.board[i][j] == Minesweeper.MINE:
+                    continue
+                cnt = sum(
+                    1 for (ni, nj) in self._neigh(i, j) if self.board[ni][nj] == Minesweeper.MINE
+                )
                 self.board[i][j] = cnt
+
         self.mines_placed = True
 
-    def _neigh(self, r, c):
-        for dr in (-1,0,1):
-            for dc in (-1,0,1):
-                if dr==0 and dc==0: continue
-                nr, nc = r+dr, c+dc
+    def _neigh(self, r: int, c: int):
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0:
+                    continue
+                nr, nc = r + dr, c + dc
                 if 0 <= nr < self.rows and 0 <= nc < self.cols:
                     yield nr, nc
 
-    def open(self, r, c):
-        if self.game_over or self.visible[r][c] == self.visible_flag(): return
+    def open(self, r: int, c: int) -> None:
+        if self.game_over or self.visible[r][c] == self.visible_flag():
+            return
+
         if not self.mines_placed:
             self.place_mines(r, c)
-        if self.visible[r][c] == Minesweeper.FLAG: return
+
+        if self.visible[r][c] == Minesweeper.FLAG:
+            return
+
         if self.board[r][c] == Minesweeper.MINE:
             # reveal mine -> game over
             self.visible[r][c] = self.board[r][c]
             self.game_over = True
             self.victory = False
             return
+
         # BFS reveal
         q = deque()
         if self.visible[r][c] == Minesweeper.HIDDEN:
-            q.append((r,c))
+            q.append((r, c))
+
         while q:
-            i,j = q.popleft()
-            if self.visible[i][j] != Minesweeper.HIDDEN: continue
+            i, j = q.popleft()
+            if self.visible[i][j] != Minesweeper.HIDDEN:
+                continue
             self.visible[i][j] = self.board[i][j]
             self.revealed_count += 1
             if self.board[i][j] == 0:
-                for (ni,nj) in self._neigh(i,j):
+                for (ni, nj) in self._neigh(i, j):
                     if self.visible[ni][nj] == Minesweeper.HIDDEN:
-                        q.append((ni,nj))
+                        q.append((ni, nj))
+
         self._check_victory()
 
-    def flag(self, r, c):
-        if self.game_over: return
+    def flag(self, r: int, c: int) -> None:
+        if self.game_over:
+            return
+
         if self.visible[r][c] == Minesweeper.HIDDEN:
             self.visible[r][c] = Minesweeper.FLAG
             self.flags += 1
         elif self.visible[r][c] == Minesweeper.FLAG:
             self.visible[r][c] = Minesweeper.HIDDEN
             self.flags -= 1
+
         self._check_victory()
 
-    def visible_flag(self):
+    def visible_flag(self) -> int:
         return Minesweeper.FLAG
 
-    def _check_victory(self):
+    def _check_victory(self) -> None:
         # win when all non-mine cells revealed
-        to_reveal = self.rows*self.cols - self.total_mines
+        to_reveal = self.rows * self.cols - self.total_mines
         if self.revealed_count == to_reveal and not self.game_over:
             self.game_over = True
             self.victory = True
@@ -103,7 +130,7 @@ class Minesweeper:
 # Bot logic
 # -------------------------
 class MinesweeperBot:
-    def __init__(self, game: Minesweeper, enum_limit=20):
+    def __init__(self, game: Minesweeper, enum_limit: int = 20) -> None:
         self.game = game
         self.enum_limit = enum_limit  # boundary size limit for exact enumeration
 
@@ -118,118 +145,141 @@ class MinesweeperBot:
 
         # 2) boundary reasoning: compute exact probabilities if possible
         boundary, constraints = self._build_boundary_and_constraints()
-        if boundary:
-            if len(boundary) <= self.enum_limit:
-                probs = self._enumerate_probs(boundary, constraints)
-                # pick cell with minimal mine probability to open (if any < 1)
-                best_cell, best_prob = min(probs.items(), key=lambda kv: kv[1])
-                if best_prob == 1.0:
-                    # flag it
-                    r,c = best_cell
-                    g.flag(r,c)
-                    return ('flag', best_cell)
-                else:
-                    r,c = best_cell
-                    g.open(r,c)
-                    return ('open', best_cell, best_prob)
-            # else fallthrough to heuristic
+        if boundary and len(boundary) <= self.enum_limit:
+            probs = self._enumerate_probs(boundary, constraints)
+            # pick cell with minimal mine probability to open (if any < 1)
+            best_cell, best_prob = min(probs.items(), key=lambda kv: kv[1])
+            if best_prob == 1.0:
+                r, c = best_cell
+                g.flag(r, c)
+                return ("flag", best_cell)
+            r, c = best_cell
+            g.open(r, c)
+            return ("open", best_cell, best_prob)
 
         # 3) fallback heuristic: pick an unknown with minimal global prob
         cell = self._fallback_pick()
         if cell is not None:
             g.open(*cell)
-            return ('open', cell, None)
+            return ("open", cell, None)
+
         return None
 
-    def _deterministic_pass(self):
+    def _deterministic_pass(self) -> bool:
         g = self.game
         # iterate over all revealed numbered cells
         for i in range(g.rows):
             for j in range(g.cols):
                 if g.visible[i][j] >= 0:  # revealed number
                     num = g.visible[i][j]
-                    neigh = list(g._neigh(i,j))
-                    flagged = sum(1 for (a,b) in neigh if g.visible[a][b] == Minesweeper.FLAG)
-                    hidden = [(a,b) for (a,b) in neigh if g.visible[a][b] == Minesweeper.HIDDEN]
+                    neigh = list(g._neigh(i, j))
+                    flagged = sum(1 for (a, b) in neigh if g.visible[a][b] == Minesweeper.FLAG)
+                    hidden = [(a, b) for (a, b) in neigh if g.visible[a][b] == Minesweeper.HIDDEN]
+
                     # rule 1: if flagged == num -> open all hidden neighbors
                     if flagged == num and hidden:
-                        for (a,b) in hidden:
-                            g.open(a,b)
+                        for (a, b) in hidden:
+                            g.open(a, b)
                         return True
+
                     # rule 2: if len(hidden) == num - flagged -> flag all hidden
-                    if len(hidden) > 0 and len(hidden) == (num - flagged):
-                        for (a,b) in hidden:
-                            g.flag(a,b)
+                    if hidden and len(hidden) == (num - flagged):
+                        for (a, b) in hidden:
+                            g.flag(a, b)
                         return True
+
         return False
 
     def _build_boundary_and_constraints(self):
         g = self.game
         boundary_set = set()
         constraints = []  # each constraint: (cells_list, mines_required)
+
         for i in range(g.rows):
             for j in range(g.cols):
                 if g.visible[i][j] >= 0:
                     num = g.visible[i][j]
-                    neigh = list(g._neigh(i,j))
-                    hidden = [(a,b) for (a,b) in neigh if g.visible[a][b] == Minesweeper.HIDDEN]
-                    flagged = sum(1 for (a,b) in neigh if g.visible[a][b] == Minesweeper.FLAG)
+                    neigh = list(g._neigh(i, j))
+                    hidden = [
+                        (a, b) for (a, b) in neigh if g.visible[a][b] == Minesweeper.HIDDEN
+                    ]
+                    flagged = sum(1 for (a, b) in neigh if g.visible[a][b] == Minesweeper.FLAG)
+
                     if hidden:
-                        mines_needed = num - flagged
-                        if mines_needed < 0:
-                            mines_needed = 0
+                        mines_needed = max(0, num - flagged)
                         constraints.append((hidden, mines_needed))
                         for cell in hidden:
                             boundary_set.add(cell)
+
         # boundary is only the hidden cells that appear in constraints
         boundary = sorted(boundary_set)
         return boundary, constraints
 
     def _enumerate_probs(self, boundary, constraints):
         """Enumerate all assignments on boundary consistent with constraints.
-           Return dict mapping cell -> probability of mine (0..1)."""
-        g = self.game  # <-- FIX: need game reference here
-        bindex = {cell:i for i,cell in enumerate(boundary)}
+        Return dict mapping cell -> probability of mine (0..1).
+        """
+
+        g = self.game
+        bindex = {cell: i for i, cell in enumerate(boundary)}
         n = len(boundary)
-        counts = [0]*n
+        counts = [0] * n
         total_valid = 0
+
         # enumerate bitmasks
-        for mask in range(1<<n):
+        for mask in range(1 << n):
             ok = True
             for (cells, need) in constraints:
                 s = 0
-                for (a,b) in cells:
-                    if ((mask >> bindex[(a,b)]) & 1):
+                for (a, b) in cells:
+                    if ((mask >> bindex[(a, b)]) & 1):
                         s += 1
                 if s != need:
                     ok = False
                     break
-            if not ok: 
+            if not ok:
                 continue
+
             total_valid += 1
             for i in range(n):
                 if (mask >> i) & 1:
                     counts[i] += 1
+
         if total_valid == 0:
-            # no valid assignment found; return uniform
-            unknowns = [(i,j) for i in range(g.rows) for j in range(g.cols) if g.visible[i][j] == Minesweeper.HIDDEN]
+            # no valid assignment found; return uniform estimate
+            unknowns = [
+                (i, j)
+                for i in range(g.rows)
+                for j in range(g.cols)
+                if g.visible[i][j] == Minesweeper.HIDDEN
+            ]
             if not unknowns:
                 return {cell: 1.0 for cell in boundary}
             prob = (g.total_mines - g.flags) / len(unknowns)
             return {cell: prob for cell in boundary}
-        probs = {boundary[i]: counts[i]/total_valid for i in range(n)}
+
+        probs = {boundary[i]: counts[i] / total_valid for i in range(n)}
         return probs
 
     def _fallback_pick(self):
         # pick an unknown cell with lowest estimated risk
         g = self.game
-        unknowns = [(i,j) for i in range(g.rows) for j in range(g.cols) if g.visible[i][j] == Minesweeper.HIDDEN]
-        if not unknowns: return None
+        unknowns = [
+            (i, j) for i in range(g.rows) for j in range(g.cols) if g.visible[i][j] == Minesweeper.HIDDEN
+        ]
+        if not unknowns:
+            return None
+
         remaining_mines = g.total_mines - g.flags
-        # simple global prob
-        global_prob = remaining_mines / len(unknowns) if unknowns else 1.0
+        # simple global prob (not used directly here, but kept for potential extensions)
+        _global_prob = remaining_mines / len(unknowns) if unknowns else 1.0
+
         # try to pick a cell not adjacent to revealed numbers first (safer heuristic)
-        safe_candidates = [cell for cell in unknowns if all(g.visible[a][b] == Minesweeper.HIDDEN for a,b in g._neigh(*cell))]
+        safe_candidates = [
+            cell
+            for cell in unknowns
+            if all(g.visible[a][b] == Minesweeper.HIDDEN for a, b in g._neigh(*cell))
+        ]
         pick_list = safe_candidates if safe_candidates else unknowns
         return random.choice(pick_list)
 
@@ -243,30 +293,34 @@ PANEL_WIDTH = 300
 BOARD_OFFSET_X = 28
 
 COLORS = {
-    'bg': (18, 24, 31),
-    'panel': (28, 34, 44),
-    'cell_hidden': (200, 200, 210),
-    'cell_revealed': (240, 245, 250),
-    'cell_flag': (220, 60, 60),
-    'text': (20, 24, 28),
-    'mine': (30, 30, 30),
-    'grid': (160, 170, 180),
-    'button': (60, 90, 120),
-    'button_hover': (90, 130, 170),
-    'button_text': (245, 245, 250),
-    'highlight': (255, 255, 255, 40)
+    'bg': (16, 24, 48),            # deep navy background
+    'panel': (20, 26, 60),         # slightly lighter panel
+    'cell_hidden': (72, 160, 240), # bright sky blue for hidden cells
+    'cell_revealed': (250, 250, 255),
+    'cell_flag': (255, 90, 90),    # vivid red flag
+    'text': (30, 36, 52),
+    'mine': (28, 24, 24),
+    'grid': (200, 215, 235),       # light grid lines
+    'button': (98, 58, 218),       # purple button
+    'button_hover': (140, 100, 255),
+    'button_text': (255, 255, 255),
+    'highlight': (255, 255, 255, 72),
+    'info_bg': (40, 44, 90),        # darker rounded badge behind info
+    'info_text': (220, 230, 255),
+    'popup_bg': (255, 200, 64),    # bright popup background
+    'popup_text': (18, 18, 28)
 }
 
 NUM_COLORS = [
-    (0, 0, 0),      # 0 (unused)
-    (0, 102, 204),  # 1 - blue
-    (0, 153, 68),   # 2 - green
-    (220, 40, 40),  # 3 - red
-    (0, 51, 102),   # 4 - dark blue
-    (153, 51, 51),  # 5 - brown
-    (0, 128, 128),  # 6 - teal
-    (0, 0, 0),      # 7
-    (120, 120, 120) # 8
+    (0, 0, 0),            # 0 (unused)
+    (40, 150, 255),       # 1 - bright blue
+    (80, 220, 120),       # 2 - neon green
+    (255, 120, 60),       # 3 - orange
+    (150, 120, 255),      # 4 - light purple
+    (255, 90, 140),       # 5 - pink
+    (0, 200, 200),        # 6 - cyan
+    (80, 80, 90),         # 7 - muted
+    (120, 120, 140)       # 8 - subtle gray-blue
 ]
 
 DIFFICULTIES = {
@@ -280,8 +334,18 @@ def draw_board(screen, font, game, offset_x):
     rows, cols = game.rows, game.cols
     # draw info
     info = f"Mines: {game.total_mines}  Flags: {game.flags}  Revealed: {game.revealed_count}/{game.rows*game.cols - game.total_mines}"
-    text = font.render(info, True, COLORS['button_text'])
-    screen.blit(text, (10, 18))
+    text = font.render(info, True, COLORS['info_text'])
+    # draw info (centered badge above the board)
+    board_w = cols * CELL + (cols + 1) * MARGIN
+    info_pad_x, info_pad_y = 14, 8
+    info_w = text.get_width() + info_pad_x * 2
+    info_h = text.get_height() + info_pad_y * 2
+    info_x = offset_x + board_w // 2 - info_w // 2
+    info_y = 18
+    info_rect = pygame.Rect(info_x, info_y, info_w, info_h)
+    pygame.draw.rect(screen, COLORS['info_bg'], info_rect, border_radius=10)
+    pygame.draw.rect(screen, COLORS['button'], info_rect, 2, border_radius=10)
+    screen.blit(text, (info_x + info_pad_x, info_y + info_pad_y))
     mx, my = pygame.mouse.get_pos()
     # draw cells
     for i in range(rows):
@@ -308,11 +372,30 @@ def draw_board(screen, font, game, offset_x):
                     txt = font.render(str(val), True, NUM_COLORS[min(val,len(NUM_COLORS)-1)])
                     screen.blit(txt, (x + (CELL - txt.get_width())//2, y + (CELL - txt.get_height())//2))
             pygame.draw.rect(screen, COLORS['grid'], rect, 1, border_radius=6)
-    # game over message
+    # game over popup
     if game.game_over:
         s = "You win! (press click to restart)" if game.victory else "Game over (press click to restart)"
-        msg = font.render(s, True, (255,255,255))
-        screen.blit(msg, (10, 44))
+        # dark translucent overlay
+        overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+        overlay.fill((8, 8, 12, 160))
+        screen.blit(overlay, (0, 0))
+
+        # popup box
+        msg = font.render(s, True, COLORS['popup_text'])
+        pad_x, pad_y = 28, 18
+        popup_w = msg.get_width() + pad_x * 2
+        popup_h = msg.get_height() + pad_y * 2
+        sw, sh = screen.get_size()
+        popup_x = sw // 2 - popup_w // 2
+        popup_y = sh // 2 - popup_h // 2
+
+        popup_rect = pygame.Rect(popup_x, popup_y, popup_w, popup_h)
+        pygame.draw.rect(screen, COLORS['popup_bg'], popup_rect, border_radius=12)
+        # subtle border
+        pygame.draw.rect(screen, COLORS['button'], popup_rect, 3, border_radius=12)
+
+        # blit message centered in popup
+        screen.blit(msg, (popup_x + pad_x, popup_y + pad_y))
 
 
 def draw_flag(screen, rect):
@@ -437,6 +520,14 @@ def main():
 
     running = True
     while running:
+        # current window size and dynamic board offset (used for centering small boards)
+        cur_w, cur_h = screen.get_size()
+        offset_x = BOARD_OFFSET_X
+        if state == "game" and game is not None:
+            board_area_width = cur_w - PANEL_WIDTH - 2 * BOARD_OFFSET_X
+            board_w = game.cols * CELL + (game.cols + 1) * MARGIN
+            offset_x = BOARD_OFFSET_X + max(0, (board_area_width - board_w) // 2)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
@@ -465,7 +556,7 @@ def main():
                     mx, my = event.pos
 
                     # ================= STEP 10: RIGHT PANEL BUTTON HANDLING =================
-                    panel_rect = pygame.Rect(SCREEN_W - PANEL_WIDTH, 0, PANEL_WIDTH, SCREEN_H)
+                    panel_rect = pygame.Rect(cur_w - PANEL_WIDTH, 0, PANEL_WIDTH, cur_h)
 
                     if panel_rect.collidepoint(mx, my):
                         # buttons may not exist yet during the first event loop iteration;
@@ -507,7 +598,7 @@ def main():
                         game_start_time = time.time()
                     else:
                         if my > TOP_MARGIN:
-                            j = (mx - BOARD_OFFSET_X - MARGIN) // (CELL + MARGIN)
+                            j = (mx - offset_x - MARGIN) // (CELL + MARGIN)
                             i = (my - TOP_MARGIN - MARGIN) // (CELL + MARGIN)
                             if 0 <= i < game.rows and 0 <= j < game.cols:
                                 if event.button == 1:
@@ -553,12 +644,10 @@ def main():
                 action = bot.step()
                 last_step = time.time()
 
-            panel_rect = pygame.Rect(SCREEN_W - PANEL_WIDTH, 0, PANEL_WIDTH, SCREEN_H)
+            panel_rect = pygame.Rect(cur_w - PANEL_WIDTH, 0, PANEL_WIDTH, cur_h)
 
-            buttons = draw_side_panel(
-                screen, font, panel_rect, game, game_history, auto_play
-            )
-            draw_board(screen, font, game, BOARD_OFFSET_X)
+            buttons = draw_side_panel(screen, font, panel_rect, game, game_history, auto_play)
+            draw_board(screen, font, game, offset_x)
 
         pygame.display.flip()
         clock.tick(30)
